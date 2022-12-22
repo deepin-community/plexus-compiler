@@ -1,0 +1,7 @@
+
+org.apache.maven.plugins maven-enforcer-plugin * * * *
+org.apache.maven.plugins maven-gpg-plugin * * * *
+org.apache.maven.plugins maven-javadoc-plugin * * * *
+org.codehaus.mojo animal-sniffer-maven-plugin * * * *
+
+org.apache.maven maven-artifact-test * * * *

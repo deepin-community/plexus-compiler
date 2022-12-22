@@ -1,0 +1,2 @@
+version=3
+https://github.com/codehaus-plexus/plexus-compiler/tags .*/plexus-compiler-(\d.+)\.tar\.gz

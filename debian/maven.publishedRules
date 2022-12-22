@@ -1,0 +1,9 @@
+
+org.codehaus.plexus plexus-compiler-api jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-csharp jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-eclipse jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-javac jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-jikes jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-j2objc jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-manager jar s/.*/2.x/ * *
+org.codehaus.plexus plexus-compiler-test jar s/.*/2.x/ * *

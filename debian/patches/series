@@ -1,0 +1,4 @@
+fix_test_classpath.patch
+auto-adjust-language-level.patch
+maven-compatibility.patch
+missing-dependency-management-entries.patch

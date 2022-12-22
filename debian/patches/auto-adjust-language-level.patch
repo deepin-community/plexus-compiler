@@ -1,0 +1,42 @@
+Description: Adjust the source/target level automatically for building with recent JDKs
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: not-needed
+--- a/plexus-compilers/plexus-compiler-javac/src/main/java/org/codehaus/plexus/compiler/javac/JavacCompiler.java
++++ b/plexus-compilers/plexus-compiler-javac/src/main/java/org/codehaus/plexus/compiler/javac/JavacCompiler.java
+@@ -348,12 +348,20 @@
+         }
+         else
+         {
++            List<String> unsupportedLanguageLevels = java.util.Arrays.asList(new String[]{"1.1", "1.2", "1.3", "1.4", "1.5", "5", "1.6", "6"});
++
+             // TODO: this could be much improved
+             if ( StringUtils.isEmpty( config.getTargetVersion() ) )
+             {
+                 // Required, or it defaults to the target of your JDK (eg 1.5)
+                 args.add( "-target" );
+-                args.add( "1.1" );
++                args.add( "1.7" );
++            }
++            else if ( unsupportedLanguageLevels.contains( config.getTargetVersion() ) )
++            {
++                System.err.println( "Use of target " + config.getTargetVersion() + " is no longer supported, switching to 7" );
++                args.add( "-target" );
++                args.add( "1.7" );
+             }
+             else
+             {
+@@ -365,7 +373,13 @@
+             {
+                 // If omitted, later JDKs complain about a 1.1 target
+                 args.add( "-source" );
+-                args.add( "1.3" );
++                args.add( "1.7" );
++            }
++            else if ( !suppressSource( config ) && unsupportedLanguageLevels.contains( config.getSourceVersion() ) )
++            {
++                System.err.println( "Use of source " + config.getSourceVersion() + " is no longer supported, switching to 7" );
++                args.add( "-source" );
++                args.add( "1.7" );
+             }
+             else if ( !suppressSource( config ) )
+             {

@@ -1,0 +1,73 @@
+Description: Fixes the compatibility with Maven 3
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: no
+--- a/plexus-compiler-test/src/main/java/org/codehaus/plexus/compiler/AbstractCompilerTest.java
++++ b/plexus-compiler-test/src/main/java/org/codehaus/plexus/compiler/AbstractCompilerTest.java
+@@ -27,10 +27,16 @@
+ import org.apache.maven.artifact.Artifact;
+ import org.apache.maven.artifact.DefaultArtifact;
+ import org.apache.maven.artifact.handler.DefaultArtifactHandler;
+-import org.apache.maven.artifact.test.ArtifactTestCase;
++import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
++import org.apache.maven.artifact.repository.ArtifactRepository;
++import org.apache.maven.artifact.repository.DefaultArtifactRepository;
+ import org.apache.maven.artifact.versioning.VersionRange;
++import org.apache.maven.settings.Settings;
++import org.apache.maven.settings.io.xpp3.SettingsXpp3Reader;
+ 
++import org.codehaus.plexus.PlexusTestCase;
+ import org.codehaus.plexus.util.FileUtils;
++import org.codehaus.plexus.util.ReaderFactory;
+ import org.codehaus.plexus.util.StringUtils;
+ 
+ import java.io.File;
+@@ -45,7 +51,7 @@
+  *
+  */
+ public abstract class AbstractCompilerTest
+-    extends ArtifactTestCase
++    extends PlexusTestCase
+ {
+     private boolean compilerDebug = false;
+ 
+@@ -53,6 +59,40 @@
+ 
+     private boolean forceJavacCompilerUse = false;
+ 
++    private ArtifactRepository localRepository;
++
++    protected File getLocalArtifactPath( Artifact artifact )
++    {
++        return new File( localRepository.getBasedir(), localRepository.pathOf( artifact ) );
++    }
++
++    protected void setUp()
++        throws Exception
++    {
++        super.setUp();
++
++        String localRepo = System.getProperty( "maven.repo.local" );
++
++        if ( localRepo == null )
++        {
++            File settingsFile = new File( System.getProperty( "user.home" ), ".m2/settings.xml" );
++            if ( settingsFile.exists() )
++            {
++                Settings settings = new SettingsXpp3Reader().read( ReaderFactory.newXmlReader( settingsFile ) );
++                localRepo = settings.getLocalRepository();
++            }
++        }
++        if ( localRepo == null )
++        {
++            localRepo = System.getProperty( "user.home" ) + "/.m2/repository";
++        }
++
++        ArtifactRepositoryLayout repositoryLayout = (ArtifactRepositoryLayout) getContainer().lookup(
++            ArtifactRepositoryLayout.ROLE, "default" );
++
++        localRepository = new DefaultArtifactRepository( "local", "file://" + localRepo, repositoryLayout );
++    }
++
+     protected abstract String getRoleHint();
+ 
+     protected void setCompilerDebug( boolean flag )
