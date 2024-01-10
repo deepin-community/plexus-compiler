@@ -68,7 +68,11 @@ public class CompilerConfiguration
     private String debugLevel;
 
     private boolean showWarnings = true;
+
+    private String warnings;
     
+    private boolean showLint;
+
     /**
      * -Werror argument as supported since Java 1.7
      */
@@ -79,7 +83,7 @@ public class CompilerConfiguration
     private String sourceVersion;
 
     private String targetVersion;
-    
+
     /**
      * value of -release parameter in java 9+
      */
@@ -150,6 +154,12 @@ public class CompilerConfiguration
     private List<String> processorPathEntries;
 
     /**
+     * --processor-module-path parameter in jdk 9+. If specified, annotation processors are only searched in the processor
+     * path. Otherwise they are searched in the modulepath.
+     */
+    private List<String> processorModulePathEntries;
+
+    /**
      * default value {@link CompilerReuseStrategy#ReuseCreated}
      *
      * @since 1.9
@@ -161,6 +171,20 @@ public class CompilerConfiguration
      * @since 2.0
      */
     private boolean forceJavacCompilerUse=false;
+
+    /**
+     * force a different of the debug file containing the forked command run (such javac.sh)
+     * @since 2.9.1
+     */
+    private String debugFileName;
+
+    /**
+     * configure <code>--enable-preview</code> of java compiler
+     */
+    private boolean enablePreview;
+
+    /** value of <code>-implicit:</code> of java compiler */
+    private String implicitOption;
 
     // ----------------------------------------------------------------------
     //
@@ -339,9 +363,9 @@ public class CompilerConfiguration
         return debugLevel;
     }
 
-    public void setShowWarnings( boolean showWarnings )
+    public void setWarnings( String warnings )
     {
-        this.showWarnings = showWarnings;
+        this.warnings = warnings;
     }
 
     public boolean isShowWarnings()
@@ -349,21 +373,43 @@ public class CompilerConfiguration
         return showWarnings;
     }
 
+    public void setShowWarnings( boolean showWarnings )
+    {
+        this.showWarnings = showWarnings;
+    }
+
     public boolean isShowDeprecation()
     {
         return showDeprecation;
+    }
+
+    public String getWarnings()
+    {
+        return warnings;
+    }
+
+
+
+    public void setShowLint( boolean showLint )
+    {
+        this.showLint = showLint;
+    }
+
+    public boolean isShowLint()
+    {
+        return this.showLint;
     }
 
     public void setShowDeprecation( boolean showDeprecation )
     {
         this.showDeprecation = showDeprecation;
     }
-    
+
     public boolean isFailOnWarning()
     {
         return failOnWarning;
     }
-    
+
     public void setFailOnWarning( boolean failOnWarnings )
     {
         this.failOnWarning = failOnWarnings;
@@ -388,7 +434,7 @@ public class CompilerConfiguration
     {
         this.targetVersion = targetVersion;
     }
-    
+
     public String getReleaseVersion()
     {
         return releaseVersion;
@@ -451,7 +497,7 @@ public class CompilerConfiguration
 
     /**
      * Get all unique argument keys and their value. In case of duplicate keys, last one added wins.
-     * 
+     *
      * @return
      * @see CompilerConfiguration#getCustomCompilerArgumentsEntries()
      */
@@ -473,10 +519,10 @@ public class CompilerConfiguration
             this.customCompilerArguments.addAll( customCompilerArguments.entrySet() );
         }
     }
-    
+
     /**
      * In case argument keys are not unique, this will return all entries
-     * 
+     *
      * @return
      */
     public Collection<Map.Entry<String,String>> getCustomCompilerArgumentsEntries()
@@ -594,6 +640,16 @@ public class CompilerConfiguration
         this.parameters = parameters;
     }
 
+    public boolean isEnablePreview()
+    {
+        return enablePreview;
+    }
+
+    public void setEnablePreview(boolean enablePreview)
+    {
+        this.enablePreview = enablePreview;
+    }
+
     public void setProc(String proc )
     {
         this.proc = proc;
@@ -658,6 +714,26 @@ public class CompilerConfiguration
         this.processorPathEntries = processorPathEntries;
     }
 
+    
+    public void addProcessorModulePathEntry(String entry) {
+        if ( processorModulePathEntries == null ) {
+            processorModulePathEntries = new LinkedList<>();
+        }
+
+        processorModulePathEntries.add( entry );
+    }
+    
+    public List<String> getProcessorModulePathEntries()
+    {
+        return processorModulePathEntries;
+    }
+    
+    public void setProcessorModulePathEntries( List<String> processorModulePathEntries )
+    {
+        this.processorModulePathEntries = processorModulePathEntries;
+    }
+    
+    
     public CompilerReuseStrategy getCompilerReuseStrategy()
     {
         return compilerReuseStrategy;
@@ -666,6 +742,16 @@ public class CompilerConfiguration
     public void setCompilerReuseStrategy( CompilerReuseStrategy compilerReuseStrategy )
     {
         this.compilerReuseStrategy = compilerReuseStrategy;
+    }
+
+    public String getDebugFileName()
+    {
+        return debugFileName;
+    }
+
+    public void setDebugFileName(String debugFileName)
+    {
+        this.debugFileName = debugFileName;
     }
 
     /**
@@ -715,5 +801,15 @@ public class CompilerConfiguration
     public void setForceJavacCompilerUse( boolean forceJavacCompilerUse )
     {
         this.forceJavacCompilerUse = forceJavacCompilerUse;
+    }
+
+    public String getImplicitOption()
+    {
+        return implicitOption;
+    }
+
+    public void setImplicitOption( String implicitOption )
+    {
+        this.implicitOption = implicitOption;
     }
 }

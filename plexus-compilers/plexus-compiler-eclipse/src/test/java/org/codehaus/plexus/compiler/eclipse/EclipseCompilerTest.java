@@ -25,11 +25,18 @@ package org.codehaus.plexus.compiler.eclipse;
  */
 
 import org.codehaus.plexus.compiler.AbstractCompilerTest;
-import org.codehaus.plexus.compiler.Compiler;
 import org.codehaus.plexus.compiler.CompilerConfiguration;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Arrays;
 import java.util.Collection;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * @author <a href="mailto:jason@plexus.org">Jason van Zyl</a>
@@ -38,73 +45,66 @@ public class EclipseCompilerTest
     extends AbstractCompilerTest
 {
 
+    @BeforeEach
     public void setUp()
-        throws Exception
     {
-        super.setUp();
-
         setCompilerDebug( true );
         setCompilerDeprecationWarnings( true );
     }
 
+    @Override
     protected String getRoleHint()
     {
         return "eclipse";
     }
 
+    @Override
     protected int expectedErrors()
     {
         return 4;
     }
 
+    @Override
     protected int expectedWarnings()
     {
         return 2;
     }
 
+    @Override
     protected Collection<String> expectedOutputFiles()
     {
-        return Arrays.asList( new String[] { "org/codehaus/foo/Deprecation.class", "org/codehaus/foo/ExternalDeps.class",
-            "org/codehaus/foo/Person.class", "org/codehaus/foo/ReservedWord.class" } );
+        return Arrays.asList("org/codehaus/foo/Deprecation.class", "org/codehaus/foo/ExternalDeps.class",
+                "org/codehaus/foo/Person.class", "org/codehaus/foo/ReservedWord.class");
     }
 
     // The test is fairly meaningless as we can not validate anything
+    @Test
     public void testCustomArgument()
         throws Exception
     {
-        org.codehaus.plexus.compiler.Compiler compiler = (Compiler) lookup( Compiler.ROLE, getRoleHint() );
-
         CompilerConfiguration compilerConfig = createMinimalCompilerConfig();
 
         compilerConfig.addCompilerCustomArgument( "-key", "value" );
 
-        compiler.performCompile( compilerConfig );
+        getCompiler().performCompile( compilerConfig );
     }
 
+    @Test
     public void testInitializeWarningsForPropertiesArgument()
-        throws Exception
     {
-        org.codehaus.plexus.compiler.Compiler compiler = (Compiler) lookup( Compiler.ROLE, getRoleHint() );
-
         CompilerConfiguration compilerConfig = createMinimalCompilerConfig();
 
         compilerConfig.addCompilerCustomArgument( "-properties", "file_does_not_exist" );
 
-        try
-        {
-            compiler.performCompile( compilerConfig );
-            fail( "looking up the properties file should have thrown an exception" );
-        }
-        catch ( IllegalArgumentException e )
-        {
-            assertTrue("Message must start with 'Properties file'", e.getMessage().startsWith("Properties file"));
-        }
+        IllegalArgumentException e =
+            assertThrows( IllegalArgumentException.class, () -> getCompiler().performCompile( compilerConfig ) );
+        assertThat( "Message must start with 'Properties file'" , e.getMessage(), startsWith( "Properties file" ));
     }
 
     private CompilerConfiguration createMinimalCompilerConfig()
     {
         CompilerConfiguration compilerConfig = new CompilerConfiguration();
-        compilerConfig.setOutputLocation( getBasedir() + "/target/" + getRoleHint() + "/classes-CustomArgument" );
+        compilerConfig.setOutputLocation( "target/" + getRoleHint() + "/classes-CustomArgument" );
         return compilerConfig;
     }
 
