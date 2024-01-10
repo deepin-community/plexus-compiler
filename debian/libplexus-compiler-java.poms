@@ -36,6 +36,5 @@ plexus-compilers/plexus-compiler-aspectj/pom.xml --ignore
 plexus-compilers/plexus-compiler-javac-errorprone/pom.xml --ignore
 plexus-compilers/plexus-compiler-csharp/pom.xml  --has-package-version --java-lib --usj-name=plexus-compiler-csharp-2.x
 plexus-compilers/plexus-compiler-eclipse/pom.xml --has-package-version --java-lib --usj-name=plexus-compiler-eclipse-2.x
-plexus-compilers/plexus-compiler-jikes/pom.xml   --has-package-version --java-lib --usj-name=plexus-compiler-jikes-2.x
 plexus-compilers/plexus-compiler-javac/pom.xml   --has-package-version --java-lib --usj-name=plexus-compiler-javac-2.x
 plexus-compilers/plexus-compiler-j2objc/pom.xml  --has-package-version --java-lib --usj-name=plexus-compiler-j2objc-2.x

@@ -27,11 +27,21 @@ package org.codehaus.plexus.compiler;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.handler.DefaultArtifactHandler;
-import org.apache.maven.artifact.test.ArtifactTestCase;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.DefaultArtifactRepository;
+import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
 import org.apache.maven.artifact.versioning.VersionRange;
-
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.io.xpp3.SettingsXpp3Reader;
+import org.codehaus.plexus.testing.PlexusTest;
 import org.codehaus.plexus.util.FileUtils;
+import org.codehaus.plexus.util.ReaderFactory;
 import org.codehaus.plexus.util.StringUtils;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.hamcrest.io.FileMatchers;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -39,21 +49,59 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import javax.inject.Inject;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
+@PlexusTest
 public abstract class AbstractCompilerTest
-    extends ArtifactTestCase
 {
     private boolean compilerDebug = false;
 
     private boolean compilerDeprecationWarnings = false;
 
     private boolean forceJavacCompilerUse = false;
+    
+    @Inject
+    private Map<String, Compiler> compilers;
 
+    @Inject
+    private ArtifactRepositoryLayout repositoryLayout;
+    
+    private ArtifactRepository localRepository;
+    
     protected abstract String getRoleHint();
+
+    @BeforeEach
+    final void setUpLocalRepo()
+        throws Exception
+    {
+        String localRepo = System.getProperty( "maven.repo.local" );
+
+        if ( localRepo == null )
+        {
+            File settingsFile = new File( System.getProperty( "user.home" ), ".m2/settings.xml" );
+            if ( settingsFile.exists() )
+            {
+                Settings settings = new SettingsXpp3Reader().read( ReaderFactory.newXmlReader( settingsFile ) );
+                localRepo = settings.getLocalRepository();
+            }
+        }
+        if ( localRepo == null )
+        {
+            localRepo = System.getProperty( "user.home" ) + "/.m2/repository";
+        }
+
+        localRepository = new DefaultArtifactRepository( "local", "file://" + localRepo, repositoryLayout );
+    }
 
     protected void setCompilerDebug( boolean flag )
     {
@@ -69,6 +117,11 @@ public abstract class AbstractCompilerTest
     {
         this.forceJavacCompilerUse = forceJavacCompilerUse;
     }
+    
+    protected final Compiler getCompiler()
+    {
+        return compilers.get( getRoleHint() );
+    }
 
     protected List<String> getClasspath()
         throws Exception
@@ -77,8 +130,8 @@ public abstract class AbstractCompilerTest
 
         File file = getLocalArtifactPath( "commons-lang", "commons-lang", "2.0", "jar" );
 
-        assertTrue( "test prerequisite: commons-lang library must be available in local repository, expected "
-                        + file.getAbsolutePath(), file.canRead() );
+        assertThat("test prerequisite: commons-lang library must be available in local repository, expected ",
+                file, FileMatchers.aReadableFile());
 
         cp.add( file.getAbsolutePath() );
 
@@ -90,19 +143,18 @@ public abstract class AbstractCompilerTest
 
     }
 
+    @Test
     public void testCompilingSources()
         throws Exception
     {
         List<CompilerMessage> messages = new ArrayList<>();
-        Collection<String> files = new TreeSet<>();
+        Collection<String> files = new ArrayList<>();
 
         for ( CompilerConfiguration compilerConfig : getCompilerConfigurations() )
         {
             File outputDir = new File( compilerConfig.getOutputLocation() );
 
-            Compiler compiler = (Compiler) lookup( Compiler.ROLE, getRoleHint() );
-
-            messages.addAll( compiler.performCompile( compilerConfig ).getCompilerMessages() );
+            messages.addAll( getCompiler().performCompile( compilerConfig ).getCompilerMessages() );
 
             if ( outputDir.isDirectory() )
             {
@@ -134,8 +186,9 @@ public abstract class AbstractCompilerTest
                 errors.add( error.getMessage() );
             }
 
-            assertEquals( "Wrong number of compilation errors (" + numCompilerErrors + "/" + expectedErrors //
-                              + ") : " + displayLines( errors ), expectedErrors, numCompilerErrors );
+            assertThat("Wrong number of compilation errors (" + numCompilerErrors + "/" + expectedErrors //
+                            + ") : " + displayLines( errors ),
+                    numCompilerErrors, is( expectedErrors ) );
         }
 
         int expectedWarnings = expectedWarnings();
@@ -157,12 +210,12 @@ public abstract class AbstractCompilerTest
                 warnings.add( error.getMessage() );
             }
 
-            assertEquals( "Wrong number (" + numCompilerWarnings + "/"
-                              + expectedWarnings + ") of compilation warnings: " + displayLines( warnings ), //
-                          expectedWarnings, numCompilerWarnings);
+            assertThat( "Wrong number ("
+                + numCompilerWarnings + "/" + expectedWarnings + ") of compilation warnings: "
+                + displayLines( warnings ), numCompilerWarnings, is( expectedWarnings ) );
         }
 
-        assertEquals( new TreeSet<>( normalizePaths( expectedOutputFiles() ) ), files );
+        assertThat( files, containsInAnyOrder(normalizePaths(expectedOutputFiles()).toArray(new String[0])));
     }
 
     protected String displayLines( List<String> warnings)
@@ -179,7 +232,7 @@ public abstract class AbstractCompilerTest
     private List<CompilerConfiguration> getCompilerConfigurations()
         throws Exception
     {
-        String sourceDir = getBasedir() + "/src/test-input/src/main";
+        String sourceDir = "src/test-input/src/main";
 
         List<String> filenames =
             FileUtils.getFileNames( new File( sourceDir ), "**/*.java", null, false, true );
@@ -202,7 +255,7 @@ public abstract class AbstractCompilerTest
 
             compilerConfig.addSourceLocation( sourceDir );
 
-            compilerConfig.setOutputLocation( getBasedir() + "/target/" + getRoleHint() + "/classes-" + index );
+            compilerConfig.setOutputLocation( "target/" + getRoleHint() + "/classes-" + index );
 
             FileUtils.deleteDirectory( compilerConfig.getOutputLocation() );
 
@@ -244,12 +297,9 @@ public abstract class AbstractCompilerTest
 
     private List<String> normalizePaths( Collection<String> relativePaths )
     {
-        List<String> normalizedPaths = new ArrayList<>();
-        for ( String relativePath : relativePaths )
-        {
-            normalizedPaths.add( relativePath.replace( File.separatorChar, '/' ) );
-        }
-        return normalizedPaths;
+        return relativePaths.stream()
+                .map( s -> s.replace( File.separatorChar, '/' ) )
+                .collect(Collectors.toList());
     }
 
     protected int compilerErrorCount( List<CompilerMessage> messages )
@@ -315,4 +365,8 @@ public abstract class AbstractCompilerTest
         return javaVersion;
     }
 
+    protected File getLocalArtifactPath( Artifact artifact )
+    {
+        return new File( localRepository.getBasedir(), localRepository.pathOf( artifact ) );
+    }
 }

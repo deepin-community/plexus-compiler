@@ -1,3 +1,35 @@
+plexus-compiler (2.12.1-2) unstable; urgency=medium
+
+  * Team upload
+  * Support for Java 21 (Closes: #1040270)
+    Thank you to Vladimir Petko for the patch.
+  * Bump Standards-Version to 4.6.2 (no changes)
+  * Set Rules-Requires-Root: no in debian/control
+  * Update copyright format uri
+  * Update debian/watch format to version 4
+
+ -- tony mancill <tmancill@debian.org>  Tue, 11 Jul 2023 21:02:00 -0700
+
+plexus-compiler (2.12.1-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+    - New dependencies on libassertj-core-java and libplexus-testing-java
+    - Set the source/target level to Java 8
+    - No longer build the jikes module
+    - Depend on libhamcrest-java (>= 2.2)
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Sun, 02 Oct 2022 18:19:36 +0200
+
+plexus-compiler (2.8.8-3) unstable; urgency=medium
+
+  * Team upload.
+  * Adjust the release level from 6 to 7 to support Java 12 or later
+  * Standards-Version updated to 4.6.1
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 24 May 2022 23:51:17 +0200
+
 plexus-compiler (2.8.8-2) unstable; urgency=medium
 
   * Team upload.

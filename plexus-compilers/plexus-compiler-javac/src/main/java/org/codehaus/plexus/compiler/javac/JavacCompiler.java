@@ -70,6 +70,7 @@ import org.codehaus.plexus.compiler.CompilerMessage;
 import org.codehaus.plexus.compiler.CompilerOutputStyle;
 import org.codehaus.plexus.compiler.CompilerResult;
 import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.Os;
 import org.codehaus.plexus.util.StringUtils;
@@ -104,7 +105,10 @@ public class JavacCompiler
 
     private static volatile Class<?> JAVAC_CLASS;
 
-    private List<Class<?>> javaccClasses = new CopyOnWriteArrayList<Class<?>>();
+    private final List<Class<?>> javaccClasses = new CopyOnWriteArrayList<>();
+
+    @Requirement
+    private InProcessCompiler inProcessCompiler;
 
     // ----------------------------------------------------------------------
     //
@@ -186,10 +190,10 @@ public class JavacCompiler
         return result;
     }
 
-	protected InProcessCompiler inProcessCompiler()
-	{
-		return new org.codehaus.plexus.compiler.javac.JavaxToolsCompiler();
-	}
+    protected InProcessCompiler inProcessCompiler()
+    {
+        return inProcessCompiler;
+    }
 
     protected static boolean isJava16()
     {
@@ -235,7 +239,7 @@ public class JavacCompiler
 
             args.add( getPathString( classpathEntries ) );
         }
-        
+
         List<String> modulepathEntries = config.getModulepathEntries();
         if ( modulepathEntries != null && !modulepathEntries.isEmpty() )
         {
@@ -289,10 +293,15 @@ public class JavacCompiler
                 }
                 args.add( buffer.toString() );
             }
-            if ( config.getProcessorPathEntries() != null && !config.getProcessorPathEntries().isEmpty() ) {
+            if ( config.getProcessorPathEntries() != null && !config.getProcessorPathEntries().isEmpty() ) 
+            {
                 args.add( "-processorpath" );
-
                 args.add( getPathString( config.getProcessorPathEntries() ) );
+            }
+            if ( config.getProcessorModulePathEntries() != null && !config.getProcessorModulePathEntries().isEmpty() ) 
+            {
+                args.add( "--processor-module-path" );
+                args.add( getPathString( config.getProcessorModulePathEntries() ) );
             }
         }
 
@@ -323,6 +332,16 @@ public class JavacCompiler
             args.add( "-parameters" );
         }
 
+        if ( config.isEnablePreview() )
+        {
+            args.add( "--enable-preview" );
+        }
+
+        if ( config.getImplicitOption() != null )
+        {
+            args.add( "-implicit:" + config.getImplicitOption() );
+        }
+
         if ( config.isShowDeprecation() )
         {
             args.add( "-deprecation" );
@@ -335,7 +354,22 @@ public class JavacCompiler
         {
             args.add( "-nowarn" );
         }
-        
+        else
+        {
+            String warnings = config.getWarnings();
+            if (config.isShowLint())
+            {
+                if(config.isShowWarnings() && StringUtils.isNotEmpty(warnings))
+                {
+                    args.add( "-Xlint:" + warnings );
+                }
+                else
+                {
+                    args.add( "-Xlint" );
+                }
+            }
+        }
+
         if ( config.isFailOnWarning() )
         {
             args.add( "-Werror" );
@@ -371,7 +405,7 @@ public class JavacCompiler
             {
                 args.add( "-source" );
                 args.add( config.getSourceVersion() );
-            }            
+            }
         }
 
 
@@ -408,7 +442,7 @@ public class JavacCompiler
             args.add( value );
         }
 
-        return args.toArray( new String[args.size()] );
+        return args.toArray( new String[0] );
     }
 
     /**
@@ -439,29 +473,12 @@ public class JavacCompiler
      */
     private static boolean isPreJava16( CompilerConfiguration config )
     {
-        String v = config.getCompilerVersion();
+        String v = config.getReleaseVersion();
 
         if ( v == null )
         {
-            //mkleint: i haven't completely understood the reason for the
-            //compiler version parameter, checking source as well, as most projects will have this one set, not the compiler
-            String s = config.getSourceVersion();
-            if ( s == null )
-            {
-                //now return true, as the 1.6 version is not the default - 1.4 is.
-                return true;
-            }
-            return s.startsWith( "1.5" ) || s.startsWith( "1.4" ) || s.startsWith( "1.3" ) || s.startsWith( "1.2" )
-                || s.startsWith( "1.1" ) || s.startsWith( "1.0" );
+            v = config.getCompilerVersion();
         }
-
-        return v.startsWith( "1.5" ) || v.startsWith( "1.4" ) || v.startsWith( "1.3" ) || v.startsWith( "1.2" )
-            || v.startsWith( "1.1" ) || v.startsWith( "1.0" );
-    }
-
-    private static boolean isPreJava18( CompilerConfiguration config )
-    {
-        String v = config.getCompilerVersion();
 
         if ( v == null )
         {
@@ -473,7 +490,54 @@ public class JavacCompiler
             return true;
         }
 
-        return v.startsWith( "1.7" ) || v.startsWith( "1.6" ) || v.startsWith( "1.5" ) || v.startsWith( "1.4" )
+        return v.startsWith( "5" ) || v.startsWith( "1.5" ) || v.startsWith( "1.4" ) || v.startsWith( "1.3" ) || v.startsWith( "1.2" )
+            || v.startsWith( "1.1" ) || v.startsWith( "1.0" );
+    }
+
+    private static boolean isPreJava18( CompilerConfiguration config )
+    {
+        String v = config.getReleaseVersion();
+
+        if ( v == null )
+        {
+            v = config.getCompilerVersion();
+        }
+
+        if ( v == null )
+        {
+            v = config.getSourceVersion();
+        }
+
+        if ( v == null )
+        {
+            return true;
+        }
+
+        return v.startsWith( "7" ) || v.startsWith( "1.7" ) || v.startsWith( "6" ) ||v.startsWith( "1.6" ) || v.startsWith( "1.5" ) || v.startsWith( "1.4" )
+                || v.startsWith( "1.3" ) || v.startsWith( "1.2" ) || v.startsWith( "1.1" ) || v.startsWith( "1.0" );
+    }
+
+    private static boolean isPreJava9( CompilerConfiguration config )
+    {
+
+        String v = config.getReleaseVersion();
+
+        if ( v == null )
+        {
+            v = config.getCompilerVersion();
+        }
+
+        if ( v == null )
+        {
+            v = config.getSourceVersion();
+        }
+
+        if ( v == null )
+        {
+            return true;
+        }
+
+        return v.startsWith( "8" )  || v.startsWith( "1.8" )  || v.startsWith( "7" ) || v.startsWith( "1.7" ) || v.startsWith( "1.6" ) || v.startsWith( "1.5" ) || v.startsWith( "1.4" )
                 || v.startsWith( "1.3" ) || v.startsWith( "1.2" ) || v.startsWith( "1.1" ) || v.startsWith( "1.0" );
     }
 
@@ -509,7 +573,7 @@ public class JavacCompiler
 
         try
         {
-            File argumentsFile = createFileWithArguments( args, config.getOutputLocation() );
+            File argumentsFile = createFileWithArguments( args, config.getBuildDirectory().getAbsolutePath() );
             cli.addArguments(
                 new String[]{ "@" + argumentsFile.getCanonicalPath().replace( File.separatorChar, '/' ) } );
 
@@ -544,8 +608,10 @@ public class JavacCompiler
 
         if ( ( getLogger() != null ) && getLogger().isDebugEnabled() )
         {
+            String debugFileName = StringUtils.isEmpty(config.getDebugFileName()) ? "javac" : config.getDebugFileName();
+
             File commandLineFile =
-                new File( config.getOutputLocation(), "javac." + ( Os.isFamily( Os.FAMILY_WINDOWS ) ? "bat" : "sh" ) );
+                new File( config.getBuildDirectory(),  StringUtils.trim(debugFileName) + "." + ( Os.isFamily( Os.FAMILY_WINDOWS ) ? "bat" : "sh" ) );
             try
             {
                 FileUtils.fileWrite( commandLineFile.getAbsolutePath(), cli.toString().replaceAll( "'", "" ) );
@@ -632,26 +698,14 @@ public class JavacCompiler
 
             ok = (Integer) compile.invoke( null, new Object[]{ args, new PrintWriter( out ) } );
 
-            messages = parseModernStream( ok.intValue(), new BufferedReader( new StringReader( out.toString() ) ) );
+            messages = parseModernStream( ok, new BufferedReader( new StringReader( out.toString() ) ) );
         }
-        catch ( NoSuchMethodException e )
-        {
-            throw new CompilerException( "Error while executing the compiler.", e );
-        }
-        catch ( IllegalAccessException e )
-        {
-            throw new CompilerException( "Error while executing the compiler.", e );
-        }
-        catch ( InvocationTargetException e )
-        {
-            throw new CompilerException( "Error while executing the compiler.", e );
-        }
-        catch ( IOException e )
+        catch ( NoSuchMethodException | IOException | InvocationTargetException | IllegalAccessException e )
         {
             throw new CompilerException( "Error while executing the compiler.", e );
         }
 
-        boolean success = ok.intValue() == 0;
+        boolean success = ok == 0;
         return new CompilerResult( success, messages );
     }
 
@@ -671,13 +725,13 @@ public class JavacCompiler
         String line;
 
         StringBuilder buffer = new StringBuilder();
-        
+
         boolean hasPointer = false;
 
         while ( true )
         {
             line = input.readLine();
-            
+
             if ( line == null )
             {
                 // javac output not detected by other parsing
@@ -715,16 +769,20 @@ public class JavacCompiler
                 errors.add( new CompilerMessage( buffer.toString(), CompilerMessage.Kind.ERROR ) );
                 return errors;
             }
+            else if ( line.startsWith( "An annotation processor threw an uncaught exception." ) ) {
+                CompilerMessage annotationProcessingError = parseAnnotationProcessorStream( input );
+                errors.add( annotationProcessingError );
+            }
 
             // new error block?
             if ( !line.startsWith( " " ) && hasPointer )
             {
                 // add the error bean
                 errors.add( parseModernError( exitCode, buffer.toString() ) );
-                
+
                 // reset for next error block
                 buffer = new StringBuilder(); // this is quicker than clearing it
-                
+
                 hasPointer = false;
             }
 
@@ -752,14 +810,31 @@ public class JavacCompiler
 
                 buffer.append( EOL );
             }
-            
+
             if ( line.endsWith( "^" ) )
             {
                 hasPointer = true;
             }
         }
     }
-    
+
+    private static CompilerMessage parseAnnotationProcessorStream( final BufferedReader input )
+            throws IOException
+    {
+        String line = input.readLine();
+        final StringBuilder buffer = new StringBuilder();
+
+        while (line != null) {
+            if (!line.startsWith( "Consult the following stack trace for details." )) {
+                buffer.append(line);
+                buffer.append(EOL);
+            }
+            line = input.readLine();
+        }
+
+        return new CompilerMessage( buffer.toString(), CompilerMessage.Kind.ERROR );
+    }
+
     private static boolean isMisc( String line )
     {
         return startsWithPrefix( line, MISC_PREFIXES );
@@ -769,12 +844,12 @@ public class JavacCompiler
     {
         return startsWithPrefix( line, NOTE_PREFIXES );
     }
-    
+
     private static boolean startsWithPrefix( String line, String[] prefixes )
     {
-        for ( int i = 0; i < prefixes.length; i++ )
+        for ( String prefix : prefixes )
         {
-            if ( line.startsWith( prefixes[i] ) )
+            if ( line.startsWith( prefix ) )
             {
                 return true;
             }
@@ -870,9 +945,9 @@ public class JavacCompiler
             msgBuffer.append( EOL );
 
             String context = tokens.nextToken( EOL );
-            
+
             String pointer = null;
-            
+
             do
             {
                 final String msgLine = tokens.nextToken( EOL );
@@ -916,12 +991,7 @@ public class JavacCompiler
         catch ( NoSuchElementException e )
         {
             return new CompilerMessage( "no more tokens - could not parse error message: " + error, isError );
-        }
-        catch ( NumberFormatException e )
-        {
-            return new CompilerMessage( "could not parse error message: " + error, isError );
-        }
-        catch ( Exception e )
+        } catch ( Exception e )
         {
             return new CompilerMessage( "could not parse error message: " + error, isError );
         }
@@ -929,11 +999,11 @@ public class JavacCompiler
 
     private static String getWarnPrefix( String msg )
     {
-        for ( int i = 0; i < WARNING_PREFIXES.length; i++ )
+        for ( String warningPrefix : WARNING_PREFIXES )
         {
-            if ( msg.startsWith( WARNING_PREFIXES[i] ) )
+            if ( msg.startsWith( warningPrefix ) )
             {
-                return WARNING_PREFIXES[i];
+                return warningPrefix;
             }
         }
         return null;
@@ -966,9 +1036,9 @@ public class JavacCompiler
 
             writer = new PrintWriter( new FileWriter( tempFile ) );
 
-            for ( int i = 0; i < args.length; i++ )
+            for ( String arg : args )
             {
-                String argValue = args[i].replace( File.separatorChar, '/' );
+                String argValue = arg.replace( File.separatorChar, '/' );
 
                 writer.write( "\"" + argValue + "\"" );
 

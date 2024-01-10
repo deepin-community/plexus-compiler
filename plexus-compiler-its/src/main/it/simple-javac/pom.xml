@@ -31,13 +31,17 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>3.8.2</version>
+      <version>@junit.version@</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -48,13 +52,16 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.8.1</version>
         <configuration>
-          <target>8</target>
-          <source>8</source>
           <compilerArgs>
             <compilerArg>-Xlint:-path</compilerArg>
           </compilerArgs>
         </configuration>
         <dependencies>
+            <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-compiler-api</artifactId>
+            <version>@pom.version@</version>
+          </dependency>
           <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-compiler-javac</artifactId>
