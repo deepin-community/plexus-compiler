@@ -24,6 +24,25 @@ package org.codehaus.plexus.compiler.eclipse;
  * SOFTWARE.
  */
 
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticListener;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+
+import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map.Entry;
+import java.util.ServiceLoader;
 import org.codehaus.plexus.compiler.AbstractCompiler;
 import org.codehaus.plexus.compiler.Compiler;
 import org.codehaus.plexus.compiler.CompilerConfiguration;
@@ -32,30 +51,9 @@ import org.codehaus.plexus.compiler.CompilerMessage;
 import org.codehaus.plexus.compiler.CompilerOutputStyle;
 import org.codehaus.plexus.compiler.CompilerResult;
 import org.codehaus.plexus.component.annotations.Component;
-import org.codehaus.plexus.util.DirectoryScanner;
 import org.codehaus.plexus.util.StringUtils;
 import org.eclipse.jdt.core.compiler.CompilationProgress;
 import org.eclipse.jdt.core.compiler.batch.BatchCompiler;
-
-import javax.tools.Diagnostic;
-import javax.tools.DiagnosticListener;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import java.io.File;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.nio.charset.Charset;
-import java.nio.charset.IllegalCharsetNameException;
-import java.nio.charset.UnsupportedCharsetException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.ServiceLoader;
-import java.util.Set;
 
 /**
  *
@@ -130,7 +128,10 @@ public class EclipseJavaCompiler
         }
         else
         {
-            StringBuilder warns = new StringBuilder();
+            String warnings = config.getWarnings();
+            StringBuilder warns = StringUtils.isEmpty(warnings)
+                    ? new StringBuilder()
+                    : new StringBuilder(warnings).append(',');
 
             if ( config.isShowDeprecation() )
             {
@@ -150,92 +151,40 @@ public class EclipseJavaCompiler
             args.add( "-parameters" );
         }
 
+        if(config.isFailOnWarning())
+        {
+        	args.add("-failOnWarning");
+        }
+
         // Set Eclipse-specific options
         // compiler-specific extra options override anything else in the config object...
-        Map<String, String> extras = config.getCustomCompilerArgumentsAsMap();
-        if ( extras.containsKey( "errorsAsWarnings" ) )
-        {
-            extras.remove( "errorsAsWarnings" );
-            this.errorsAsWarnings = true;
-        }
-        else if ( extras.containsKey( "-errorsAsWarnings" ) )
-        {
-            extras.remove( "-errorsAsWarnings" );
-            this.errorsAsWarnings = true;
-        }
-
-        //-- check for existence of the properties file manually
-        String props = extras.get( "-properties" );
-        if ( null != props )
-        {
-            File propFile = new File( props );
-            if ( !propFile.exists() || !propFile.isFile() )
-            {
-                throw new IllegalArgumentException(
-                    "Properties file specified by -properties " + propFile + " does not exist" );
-            }
-        }
-
-        for ( Entry<String, String> entry : extras.entrySet() )
-        {
-            /*
-             * The compiler mojo makes quite a mess of passing arguments, depending on exactly WHICH
-             * way is used to pass them. The method method using <compilerArguments> uses the tag names
-             * of its contents to denote option names, and so the compiler mojo happily adds a '-' to
-             * all of the names there and adds them to the "custom compiler arguments" map as a
-             * name, value pair where the name always contains a single '-'. The Eclipse compiler (and
-             * javac too, btw) has options with two dashes (like --add-modules for java 9). These cannot
-             * be passed using a <compilerArguments> tag.
-             *
-             * The other method is to use <compilerArgs>, where each SINGLE argument needs to be passed
-             * using an <arg>xxxx</arg> tag. In there the xxx is not manipulated by the compiler mojo, so
-             * if it starts with a dash or more dashes these are perfectly preserved. But of course these
-             * single <arg> entries are not a pair. So the compiler mojo adds them as pairs of (xxxx, null).
-             *
-             * We use that knowledge here: if a pair has a null value then do not mess up the key but
-             * render it as a single value. This should ensure that something like:
-             * <compilerArgs>
-             *     <arg>--add-modules</arg>
-             *     <arg>java.se.ee</arg>
-             * </compilerArgs>
-             *
-             * is actually added to the command like as such.
-             *
-             * (btw: the above example will still give an error when using ecj <= 4.8M6:
-             *      invalid module name: java.se.ee
-             * but that seems to be a bug in ecj).
-             */
-            String opt = entry.getKey();
-            String optionValue = entry.getValue();
-            if ( null == optionValue )
-            {
-                //-- We have an option from compilerArgs: use the key as-is as a single option value
-                args.add( opt );
-            }
-            else
-            {
-                if ( !opt.startsWith( "-" ) )
-                {
-                    opt = "-" + opt;
-                }
-                args.add( opt );
-                args.add( optionValue );
-            }
-        }
+        this.errorsAsWarnings = processCustomArguments(config, args);
 
         // Output path
         args.add( "-d" );
         args.add( config.getOutputLocation() );
 
         // Annotation processors defined?
-        List<String> extraSourceDirs = new ArrayList<>();
         if ( !isPreJava1_6( config ) )
         {
+            File generatedSourcesDir = config.getGeneratedSourcesDirectory();
+            if ( generatedSourcesDir != null )
+            {
+                generatedSourcesDir.mkdirs();
+
+                //-- option to specify where annotation processor is to generate its output
+                args.add( "-s" );
+                args.add( generatedSourcesDir.getAbsolutePath() );
+            }
+
             //now add jdk 1.6 annotation processing related parameters
             String[] annotationProcessors = config.getAnnotationProcessors();
             List<String> processorPathEntries = config.getProcessorPathEntries();
-            if ( ( annotationProcessors != null && annotationProcessors.length > 0 ) || ( processorPathEntries != null
-                && processorPathEntries.size() > 0 ) )
+            List<String> processorModulePathEntries = config.getProcessorModulePathEntries();
+
+            if ( ( annotationProcessors != null && annotationProcessors.length > 0 )
+                            || ( processorPathEntries != null && processorPathEntries.size() > 0 )
+                            || ( processorModulePathEntries != null && processorModulePathEntries.size() > 0 ) )
             {
                 if ( annotationProcessors != null && annotationProcessors.length > 0 )
                 {
@@ -254,32 +203,28 @@ public class EclipseJavaCompiler
 
                 if ( processorPathEntries != null && processorPathEntries.size() > 0 )
                 {
-                    args.add( "-processorpath" );
+                    if ( isReplaceProcessorPath( config ) )
+                    {
+                        args.add( "--processor-module-path" );
+                    }
+                    else
+                    {
+                        args.add( "-processorpath" );
+                    }
                     args.add( getPathString( processorPathEntries ) );
                 }
 
-                File generatedSourcesDir = config.getGeneratedSourcesDirectory();
-                if ( generatedSourcesDir != null )
+                if ( processorModulePathEntries != null && processorModulePathEntries.size() > 0 )
                 {
-                    generatedSourcesDir.mkdirs();
-                    extraSourceDirs.add( generatedSourcesDir.getAbsolutePath() );
-
-                    //-- option to specify where annotation processor is to generate its output
-                    args.add( "-s" );
-                    args.add( generatedSourcesDir.getAbsolutePath() );
+                    args.add( "--processor-module-path" );
+                    args.add( getPathString( processorModulePathEntries ) );
                 }
+
                 if ( config.getProc() != null )
                 {
                     args.add( "-proc:" + config.getProc() );
                 }
             }
-        }
-
-        //-- Write .class files even when error occur, but make sure methods with compile errors do abort when called
-        if ( extras.containsKey( "-proceedOnError" ) )
-        {
-            // Generate a class file even with errors, but make methods with errors fail when called
-            args.add( "-proceedOnError:Fatal" );
         }
 
         //-- classpath
@@ -288,31 +233,23 @@ public class EclipseJavaCompiler
         args.add( "-classpath" );
         args.add( getPathString( classpathEntries ) );
 
+        List<String> modulepathEntries = config.getModulepathEntries();
+        if ( modulepathEntries != null && !modulepathEntries.isEmpty() )
+        {
+            args.add( "--module-path" );
+            args.add( getPathString( modulepathEntries ) );
+        }
+
         // Collect sources
-        List<String> allSources = new ArrayList<>();
-        for ( String source : config.getSourceLocations() )
-        {
-            File srcFile = new File( source );
-            if ( srcFile.exists() )
-            {
-                Set<String> ss = getSourceFilesForSourceRoot( config, source );
-                allSources.addAll( ss );
-            }
-        }
-        for ( String extraSrcDir : extraSourceDirs )
-        {
-            File extraDir = new File( extraSrcDir );
-            if ( extraDir.isDirectory() )
-            {
-                addExtraSources( extraDir, allSources );
-            }
-        }
+        List<String> allSources = Arrays.asList( getSourceFiles( config ) );
         List<CompilerMessage> messageList = new ArrayList<>();
         if ( allSources.isEmpty() )
         {
             // -- Nothing to do -> bail out
             return new CompilerResult( true, messageList );
         }
+
+        allSources = resortSourcesToPutModuleInfoFirst( allSources );
 
         // Compile
         try
@@ -400,9 +337,6 @@ public class EclipseJavaCompiler
                 {
                     charset = Charset.defaultCharset();
                 }
-                StandardJavaFileManager manager =
-                    compiler.getStandardFileManager( messageCollector, defaultLocale, charset );
-
                 if ( getLogger().isDebugEnabled() )
                 {
                     getLogger().debug( "ecj: using character set " + charset.displayName() );
@@ -410,9 +344,9 @@ public class EclipseJavaCompiler
                     getLogger().debug( "ecj input source files: " + allSources );
                 }
 
-                Iterable<? extends JavaFileObject> units = manager.getJavaFileObjectsFromStrings( allSources );
-                try
-                {
+                try ( StandardJavaFileManager manager =
+                    compiler.getStandardFileManager( messageCollector, defaultLocale, charset ) ) {
+                    Iterable<? extends JavaFileObject> units = manager.getJavaFileObjectsFromStrings( allSources );
                     success = Boolean.TRUE.equals(
                         compiler.getTask( devNull, manager, messageCollector, args, null, units ).call() );
                 }
@@ -531,6 +465,130 @@ public class EclipseJavaCompiler
         }
     }
 
+    private static final String OPT_REPLACE_PROCESSOR_PATH = "replaceProcessorPathWithProcessorModulePath";
+    private static final String OPT_REPLACE_PROCESSOR_PATH_ = "-" + OPT_REPLACE_PROCESSOR_PATH;
+
+    static boolean isReplaceProcessorPath( CompilerConfiguration config )
+    {
+        for ( Entry<String, String> entry : config.getCustomCompilerArgumentsEntries() )
+        {
+            String opt = entry.getKey();
+            if ( opt.equals( OPT_REPLACE_PROCESSOR_PATH ) || opt.equals( OPT_REPLACE_PROCESSOR_PATH_ ) )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static List<String> resortSourcesToPutModuleInfoFirst( List<String> allSources )
+    {
+        List<String> resorted = new ArrayList<>( allSources.size() );
+
+        for ( String mi : allSources )
+        {
+            if ( mi.endsWith( "module-info.java" ) )
+            {
+                resorted.add( mi );
+            }
+        }
+
+        for ( String nmi : allSources )
+        {
+            if ( !nmi.endsWith( "module-info.java") )
+            {
+                resorted.add( nmi );
+            }
+        }
+
+        return resorted;
+    }
+
+    static boolean processCustomArguments( CompilerConfiguration config, List<String> args )
+    {
+        boolean result = false;
+
+        for ( Entry<String, String> entry : config.getCustomCompilerArgumentsEntries() )
+        {
+            String opt = entry.getKey();
+            String optionValue = entry.getValue();
+
+            // handle errorsAsWarnings options
+            if ( opt.equals("errorsAsWarnings") || opt.equals("-errorsAsWarnings") )
+            {
+                result = true;
+                continue;
+            }
+
+            if ( opt.equals( "-properties" ) )
+            {
+                if ( null != optionValue )
+                {
+                    File propFile = new File( optionValue );
+                    if ( !propFile.exists() || !propFile.isFile() )
+                    {
+                        throw new IllegalArgumentException(
+                                        "Properties file specified by -properties " + propFile + " does not exist" );
+                    }
+                }
+            }
+
+            //-- Write .class files even when error occur, but make sure methods with compile errors do abort when called
+            if ( opt.equals( "-proceedOnError" ) )
+            {
+                // Generate a class file even with errors, but make methods with errors fail when called
+                args.add( "-proceedOnError:Fatal" );
+                continue;
+            }
+
+            if ( !opt.equals( OPT_REPLACE_PROCESSOR_PATH ) && !opt.equals( OPT_REPLACE_PROCESSOR_PATH_ ) )
+            {
+                /*
+                 * The compiler mojo makes quite a mess of passing arguments, depending on exactly WHICH
+                 * way is used to pass them. The method method using <compilerArguments> uses the tag names
+                 * of its contents to denote option names, and so the compiler mojo happily adds a '-' to
+                 * all of the names there and adds them to the "custom compiler arguments" map as a
+                 * name, value pair where the name always contains a single '-'. The Eclipse compiler (and
+                 * javac too, btw) has options with two dashes (like --add-modules for java 9). These cannot
+                 * be passed using a <compilerArguments> tag.
+                 *
+                 * The other method is to use <compilerArgs>, where each SINGLE argument needs to be passed
+                 * using an <arg>xxxx</arg> tag. In there the xxx is not manipulated by the compiler mojo, so
+                 * if it starts with a dash or more dashes these are perfectly preserved. But of course these
+                 * single <arg> entries are not a pair. So the compiler mojo adds them as pairs of (xxxx, null).
+                 *
+                 * We use that knowledge here: if a pair has a null value then do not mess up the key but
+                 * render it as a single value. This should ensure that something like:
+                 * <compilerArgs>
+                 *     <arg>--add-modules</arg>
+                 *     <arg>java.se.ee</arg>
+                 * </compilerArgs>
+                 *
+                 * is actually added to the command like as such.
+                 *
+                 * (btw: the above example will still give an error when using ecj <= 4.8M6:
+                 *      invalid module name: java.se.ee
+                 * but that seems to be a bug in ecj).
+                 */
+                if ( null == optionValue )
+                {
+                    //-- We have an option from compilerArgs: use the key as-is as a single option value
+                    args.add( opt );
+                }
+                else
+                {
+                    if ( !opt.startsWith( "-" ) )
+                    {
+                        opt = "-" + opt;
+                    }
+                    args.add( opt );
+                    args.add( optionValue );
+                }
+            }
+        }
+        return result;
+    }
+
     private static boolean haveSourceOrReleaseArgument( List<String> args )
     {
         Iterator<String> allArgs = args.iterator();
@@ -571,18 +629,6 @@ public class EclipseJavaCompiler
         }
         getLogger().debug( "Cannot find org.eclipse.jdt.internal.compiler.tool.EclipseCompiler" );
         return null;
-    }
-
-    private void addExtraSources( File dir, List<String> allSources )
-    {
-        DirectoryScanner scanner = new DirectoryScanner();
-        scanner.setBasedir( dir.getAbsolutePath() );
-        scanner.setIncludes( new String[]{ "**/*.java" } );
-        scanner.scan();
-        for ( String file : scanner.getIncludedFiles() )
-        {
-            allSources.add( new File( dir, file ).getAbsolutePath() );
-        }
     }
 
     private CompilerMessage.Kind convert( Diagnostic.Kind kind )
@@ -669,6 +715,11 @@ public class EclipseJavaCompiler
         return null;
     }
 
+    @Override
+    public boolean supportsIncrementalCompilation()
+    {
+        return true;
+    }
 
     /**
      * Change any Maven Java version number to ECJ's version number. Do not check the validity

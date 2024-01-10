@@ -1,11 +1,11 @@
 --- a/plexus-compiler-test/src/main/java/org/codehaus/plexus/compiler/AbstractCompilerTest.java
 +++ b/plexus-compiler-test/src/main/java/org/codehaus/plexus/compiler/AbstractCompilerTest.java
-@@ -75,7 +75,7 @@
+@@ -128,7 +128,7 @@
      {
          List<String> cp = new ArrayList<>();
  
 -        File file = getLocalArtifactPath( "commons-lang", "commons-lang", "2.0", "jar" );
 +        File file = getLocalArtifactPath( "commons-lang", "commons-lang", "debian", "jar" );
  
-         assertTrue( "test prerequisite: commons-lang library must be available in local repository, expected "
-                         + file.getAbsolutePath(), file.canRead() );
+         assertThat("test prerequisite: commons-lang library must be available in local repository, expected ",
+                 file, FileMatchers.aReadableFile());

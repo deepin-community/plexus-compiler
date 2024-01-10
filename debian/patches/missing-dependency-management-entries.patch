@@ -5,9 +5,9 @@ Author: Emmanuel Bourg <ebourg@apache.org>
 Forwarded: not-needed
 --- a/pom.xml
 +++ b/pom.xml
-@@ -81,6 +81,11 @@
-         <scope>test</scope>
-         <version>4.13</version>
+@@ -105,6 +105,11 @@
+         <artifactId>hamcrest</artifactId>
+         <version>2.2</version>
        </dependency>
 +      <dependency>
 +        <groupId>org.codehaus.plexus</groupId>
@@ -17,13 +17,3 @@ Forwarded: not-needed
      </dependencies>
    </dependencyManagement>
    <dependencies>
---- a/plexus-compiler-api/pom.xml
-+++ b/plexus-compiler-api/pom.xml
-@@ -21,6 +21,7 @@
-     <dependency>
-       <groupId>junit</groupId>
-       <artifactId>junit</artifactId>
-+      <scope>test</scope>
-     </dependency>
-   </dependencies>
- </project>
